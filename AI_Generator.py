@@ -168,6 +168,39 @@ class ChatbotAPI:
         if not new_history or new_history[0].get("role") != "system":
             self._chat_history.insert(0, {"role": "system", "content": self.sys_prompt})
 
+    def get_sys_prompt(self):
+        """Returns the system prompt."""
+        return self.sys_prompt
+
+    def set_sys_prompt(self, char_sheet, user_name):
+        """Replaces the sys prompt with the base sys prompt with the {character_sheet} and {user} placeholders updated.
+
+        1. First loads the base sys prompt from the file (sys_prompt.txt).
+        2. Then replaces all instances of {user} from char_sheet and the sys_prompt with the user_name string.
+        3. Finally, replace {character_sheet} from sys_prompt with the fixed char_sheet string. (the one with user replaced)
+        4. edit the entry 0 of the chat history with the new sys prompt (make sure it exists and its role is "system").
+        Args:
+            char_sheet (str): The character sheet text to be inserted in the system prompt.
+            user_name (str): The name of the user to be used in both the character sheet and system prompt.
+        """
+        if not isinstance(char_sheet, str) or not isinstance(user_name, str):
+            raise ValueError("Both char_sheet and user_name must be strings")
+
+        # Load the base system prompt
+        base_sys_prompt = read_file_contents("sys_prompt.txt")
+        if not base_sys_prompt:
+            raise ValueError("Base system prompt is empty or could not be read")
+
+        # Replace placeholders in the character sheet
+        char_sheet = char_sheet.replace("{user}", user_name)
+
+        # Replace placeholders in the system prompt
+        updated_sys_prompt = base_sys_prompt.replace("{character_sheet}", char_sheet).replace("{user}", user_name)
+
+        # Update the chat history with the new system prompt
+        self.chat_history[0] = {"role": "system", "content": updated_sys_prompt}
+        self.sys_prompt = updated_sys_prompt
+
     def get_current_model(self):
         """Returns the current model being used."""
         return self.current_model
