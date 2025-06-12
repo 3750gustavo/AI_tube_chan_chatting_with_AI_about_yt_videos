@@ -6,6 +6,7 @@ from AI_Generator import ChatbotAPI, APIHandler
 from user_input_validator import UserInputValidator
 from memory_manager import MemoryManager
 from youtube_transcript_module import YouTubeTranscriptDownloader
+import atexit
 
 class AITubeChanApp:
     def __init__(self):
@@ -24,9 +25,15 @@ class AITubeChanApp:
         # App state
         self.current_character = None
         self.user_name = "User"
+        self.auto_save_file = "autosave_session.json"
+
+        # Register auto-save on exit
+        atexit.register(self.auto_save_session)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.setup_ui()
         self.load_characters()
+        self.load_auto_save_session()
 
     def setup_ui(self):
         # Main container
@@ -89,13 +96,12 @@ class AITubeChanApp:
             width=80
         ).pack(side="left", padx=2)
 
-        # Chat display area
-        self.chat_display = ctk.CTkTextbox(
-            main_frame,
-            wrap="word",
-            state="disabled"
-        )
-        self.chat_display.pack(fill="both", expand=True, padx=10, pady=5)
+        # Chat display area with scrollable frame
+        chat_frame = ctk.CTkFrame(main_frame)
+        chat_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+        self.chat_scroll = ctk.CTkScrollableFrame(chat_frame)
+        self.chat_scroll.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Input frame
         input_frame = ctk.CTkFrame(main_frame)
@@ -117,6 +123,33 @@ class AITubeChanApp:
 
         # Bind Enter key
         self.message_entry.bind("<Control-Return>", lambda e: self.send_message())
+
+    def add_message_bubble(self, message, is_user=True):
+        """Add a message bubble to the chat display"""
+        # Create bubble frame
+        bubble_frame = ctk.CTkFrame(self.chat_scroll)
+
+        if is_user:
+            # User message - right aligned, blue
+            bubble_frame.pack(fill="x", padx=(50, 10), pady=(5, 10), anchor="e")
+            bubble_frame.configure(fg_color=("#3B82F6", "#1E40AF"))  # Blue colors for light/dark mode
+        else:
+            # AI message - left aligned, gray
+            bubble_frame.pack(fill="x", padx=(10, 50), pady=(5, 10), anchor="w")
+            bubble_frame.configure(fg_color=("#E5E7EB", "#374151"))  # Gray colors for light/dark mode
+
+        # Message text
+        message_label = ctk.CTkLabel(
+            bubble_frame,
+            text=message,
+            wraplength=400,
+            justify="left",
+            font=ctk.CTkFont(size=14)
+        )
+        message_label.pack(padx=15, pady=10)
+
+        # Auto-scroll to bottom
+        self.root.after(100, lambda: self.chat_scroll._parent_canvas.yview_moveto(1.0))
 
     def load_characters(self):
         """Load character files from the characters folder"""
@@ -186,6 +219,9 @@ class AITubeChanApp:
         if not message:
             return
 
+        # Add user message bubble immediately
+        self.add_message_bubble(message, is_user=True)
+
         # Clear input
         self.message_entry.delete("1.0", "end")
 
@@ -221,7 +257,10 @@ class AITubeChanApp:
             )
 
             if response:
-                self.update_chat_display()
+                # Add AI response bubble
+                self.add_message_bubble(response, is_user=False)
+                # Auto-save session after successful message
+                self.auto_save_session()
             else:
                 messagebox.showerror("Error", "Failed to get response from AI")
 
@@ -233,8 +272,9 @@ class AITubeChanApp:
 
     def update_chat_display(self):
         """Update the chat display with current conversation"""
-        self.chat_display.configure(state="normal")
-        self.chat_display.delete("1.0", "end")
+        # Clear existing messages
+        for widget in self.chat_scroll.winfo_children():
+            widget.destroy()
 
         # Display non-system messages with message bubbles
         for message in self.chatbot_api.get_all_non_system_messages():
@@ -242,37 +282,87 @@ class AITubeChanApp:
             content = message["content"]
 
             if role == "user":
-                # User message bubble (right-aligned style)
-                display_name = self.user_name
-                self.chat_display.insert("end", f"┌─ {display_name} ─────────────────────────────────────────────────┐\n")
-                self.chat_display.insert("end", f"│ {content}\n")
-                self.chat_display.insert("end", f"└────────────────────────────────────────────────────────────────────┘\n\n")
-
+                self.add_message_bubble(content, is_user=True)
             elif role == "assistant":
-                # Character message bubble (left-aligned style)
-                display_name = self.current_character or "AI"
-                self.chat_display.insert("end", f"┌─ {display_name} ─────────────────────────────────────────────────┐\n")
+                self.add_message_bubble(content, is_user=False)
 
-                # Split long content into multiple lines for better readability
-                lines = content.split('\n')
-                for line in lines:
-                    if line.strip():
-                        # Wrap long lines
-                        while len(line) > 65:
-                            wrap_pos = line.rfind(' ', 0, 65)
-                            if wrap_pos == -1:
-                                wrap_pos = 65
-                            self.chat_display.insert("end", f"│ {line[:wrap_pos]}\n")
-                            line = line[wrap_pos:].lstrip()
-                        if line:
-                            self.chat_display.insert("end", f"│ {line}\n")
-                    else:
-                        self.chat_display.insert("end", f"│\n")
+    def auto_save_session(self):
+        """Auto-save current session"""
+        if not self.chatbot_api.get_all_non_system_messages():
+            return  # Nothing to save
 
-                self.chat_display.insert("end", f"└────────────────────────────────────────────────────────────────────┘\n\n")
+        try:
+            save_data = {
+                "character": self.current_character,
+                "user_name": self.user_name,
+                "creativity_mode": self.creativity_dropdown.get(),
+                "chat_history": self.chatbot_api.chat_history,
+                "youtube_messages": self.memory_manager.get_youtube_messages(),
+                "version": "1.0"  # For future compatibility
+            }
 
-        self.chat_display.configure(state="disabled")
-        self.chat_display.see("end")
+            with open(self.auto_save_file, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, indent=2, ensure_ascii=False)
+
+            print(f"Session auto-saved to {self.auto_save_file}")
+
+        except Exception as e:
+            print(f"Failed to auto-save session: {e}")
+
+    def load_auto_save_session(self):
+        """Load auto-saved session if it exists"""
+        if not os.path.exists(self.auto_save_file):
+            return
+
+        try:
+            with open(self.auto_save_file, 'r', encoding='utf-8') as f:
+                save_data = json.load(f)
+
+            # Only load if there's actual chat content
+            if not save_data.get("chat_history") or len(save_data["chat_history"]) <= 1:
+                return
+
+            self.load_session_data(save_data)
+            print(f"Auto-saved session loaded from {self.auto_save_file}")
+
+        except Exception as e:
+            print(f"Failed to load auto-saved session: {e}")
+
+    def load_session_data(self, save_data):
+        """Load session data from save file"""
+        # Restore app state
+        self.current_character = save_data.get("character")
+        self.user_name = save_data.get("user_name", "User")
+        creativity_mode = save_data.get("creativity_mode", "Padrão")
+
+        # Update UI
+        self.user_name_entry.delete(0, "end")
+        self.user_name_entry.insert(0, self.user_name)
+        self.creativity_dropdown.set(creativity_mode)
+
+        if self.current_character:
+            self.character_dropdown.set(self.current_character)
+
+        # Set creativity mode
+        self.chatbot_api.set_creativity_mode(creativity_mode)
+
+        # Restore memory manager state
+        youtube_messages = save_data.get("youtube_messages", {})
+        self.memory_manager.youtube_messages = {int(k): v for k, v in youtube_messages.items()}
+
+        # Restore chat history
+        self.chatbot_api.chat_history = save_data["chat_history"]
+
+        # Reload character to ensure proper user name replacement in system prompt
+        if self.current_character:
+            # Store non-system messages temporarily
+            non_system_messages = self.chatbot_api.get_all_non_system_messages()
+            # Reload character (resets chat and updates system prompt)
+            self.load_character(self.current_character)
+            # Restore non-system messages
+            self.chatbot_api.chat_history.extend(non_system_messages)
+
+        self.update_chat_display()
 
     def save_chat(self):
         """Save current chat session"""
@@ -290,8 +380,10 @@ class AITubeChanApp:
                 save_data = {
                     "character": self.current_character,
                     "user_name": self.user_name,
+                    "creativity_mode": self.creativity_dropdown.get(),
                     "chat_history": self.chatbot_api.chat_history,
-                    "youtube_messages": self.memory_manager.get_youtube_messages()
+                    "youtube_messages": self.memory_manager.get_youtube_messages(),
+                    "version": "1.0"
                 }
 
                 with open(filename, 'w', encoding='utf-8') as f:
@@ -312,34 +404,7 @@ class AITubeChanApp:
                 with open(filename, 'r', encoding='utf-8') as f:
                     save_data = json.load(f)
 
-                # Restore chat state
-                self.current_character = save_data.get("character")
-                self.user_name = save_data.get("user_name", "User")
-
-                # Update UI
-                self.user_name_entry.delete(0, "end")
-                self.user_name_entry.insert(0, self.user_name)
-
-                if self.current_character:
-                    self.character_dropdown.set(self.current_character)
-
-                # Restore memory manager state
-                youtube_messages = save_data.get("youtube_messages", {})
-                self.memory_manager.youtube_messages = {int(k): v for k, v in youtube_messages.items()}
-
-                # Restore chat history and update system prompt with correct user name
-                self.chatbot_api.chat_history = save_data["chat_history"]
-
-                # Reload character to ensure proper user name replacement
-                if self.current_character:
-                    # Temporarily store the non-system messages
-                    non_system_messages = self.chatbot_api.get_all_non_system_messages()
-                    # Reload character (this will reset chat and update system prompt)
-                    self.load_character(self.current_character)
-                    # Restore the non-system messages
-                    self.chatbot_api.chat_history.extend(non_system_messages)
-
-                self.update_chat_display()
+                self.load_session_data(save_data)
                 messagebox.showinfo("Success", "Chat loaded successfully!")
 
             except Exception as e:
@@ -356,6 +421,15 @@ class AITubeChanApp:
                 self.load_character(self.current_character)
 
             self.update_chat_display()
+
+            # Clear auto-save file
+            if os.path.exists(self.auto_save_file):
+                os.remove(self.auto_save_file)
+
+    def on_closing(self):
+        """Handle application closing"""
+        self.auto_save_session()
+        self.root.destroy()
 
     def run(self):
         """Start the application"""

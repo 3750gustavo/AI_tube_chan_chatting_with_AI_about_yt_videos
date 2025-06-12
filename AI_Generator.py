@@ -263,15 +263,15 @@ class ChatbotAPI:
             str or None: The response from the LLM API if successful, None otherwise.
         """
         # Use custom history if provided, otherwise use the instance's chat history
-        messages_to_send = custom_history if custom_history is not None else self.chat_history
+        messages_to_send = custom_history if custom_history is not None else self.chat_history.copy()
+
+        # Add the user message to the messages being sent if not using custom history
+        if message_text and custom_history is None:
+            messages_to_send.append({"role": "user", "content": store_message or message_text})
 
         # prints the messages to send for debug
         for message in messages_to_send:
             print(f"\n{message['role']}: {message['content']}")
-
-        # Add the user message to chat history if it's not already there and not using custom history
-        if message_text and store_message and custom_history is None:
-            self.chat_history.append({"role": "user", "content": store_message})
 
         data = {
             "model": self.current_model,
@@ -291,6 +291,17 @@ class ChatbotAPI:
             print("No response from API or empty response.")
             return None
 
-        # If we're using custom_history, we still want to update the real chat history
-        self.chat_history.append({"role": "assistant", "content": response})
+        # Add messages to chat history only if not using custom history
+        if custom_history is None:
+            # Add user message if not already added
+            if message_text and store_message:
+                self.chat_history.append({"role": "user", "content": store_message})
+            # Add assistant response
+            self.chat_history.append({"role": "assistant", "content": response})
+        else:
+            # When using custom history, still add the user message and response to the actual history
+            if store_message:
+                self.chat_history.append({"role": "user", "content": store_message})
+            self.chat_history.append({"role": "assistant", "content": response})
+
         return response
