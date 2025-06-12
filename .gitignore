@@ -12,6 +12,7 @@ dist/
 
 # Ignore specific files or directories
 chat_session.json
+autosave_session.json
 config.json
 sys_prompt.txt
 
