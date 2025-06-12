@@ -1,6 +1,8 @@
 import customtkinter as ctk
 import os
 import json
+import threading
+import queue
 from tkinter import filedialog, messagebox
 from AI_Generator import ChatbotAPI, APIHandler
 from user_input_validator import UserInputValidator
@@ -22,6 +24,10 @@ class AITubeChanApp:
         self.api_handler = APIHandler()
         self.memory_manager = MemoryManager(self.api_handler, user_input_validator=self.user_input_validator)
 
+        # Threading setup
+        self.response_queue = queue.Queue()
+        self.is_processing = False
+
         # App state
         self.current_character = None
         self.user_name = "User"
@@ -34,6 +40,9 @@ class AITubeChanApp:
         self.setup_ui()
         self.load_characters()
         self.load_auto_save_session()
+
+        # Start checking for AI responses
+        self.check_ai_response()
 
     def setup_ui(self):
         # Main container
@@ -214,9 +223,9 @@ class AITubeChanApp:
         self.chatbot_api.set_creativity_mode(mode)
 
     def send_message(self):
-        """Send message to AI"""
+        """Send message to AI using threading"""
         message = self.message_entry.get("1.0", "end-1c").strip()
-        if not message:
+        if not message or self.is_processing:
             return
 
         # Add user message bubble immediately
@@ -225,10 +234,17 @@ class AITubeChanApp:
         # Clear input
         self.message_entry.delete("1.0", "end")
 
-        # Disable send button
+        # Update UI state
+        self.is_processing = True
         self.send_button.configure(state="disabled", text="Sending...")
-        self.root.update()
+        self.message_entry.configure(state="disabled")
 
+        # Start AI processing in a separate thread
+        thread = threading.Thread(target=self.process_ai_message, args=(message,), daemon=True)
+        thread.start()
+
+    def process_ai_message(self, message):
+        """Process AI message in a separate thread"""
         try:
             # Process message (handle YouTube links)
             message_to_store, message_to_send, youtube_metadata = self.user_input_validator.process_message_with_link(message)
@@ -256,19 +272,39 @@ class AITubeChanApp:
                 custom_history=optimized_history
             )
 
+            # Put result in queue for main thread to process
             if response:
-                # Add AI response bubble
-                self.add_message_bubble(response, is_user=False)
-                # Auto-save session after successful message
-                self.auto_save_session()
+                self.response_queue.put(("success", response))
             else:
-                messagebox.showerror("Error", "Failed to get response from AI")
+                self.response_queue.put(("error", "Failed to get response from AI"))
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error sending message: {e}")
-        finally:
-            # Re-enable send button
-            self.send_button.configure(state="normal", text="Send")
+            self.response_queue.put(("error", f"Error sending message: {e}"))
+
+    def check_ai_response(self):
+        """Check for AI responses and update UI (runs in main thread)"""
+        try:
+            while True:
+                response_type, response_data = self.response_queue.get_nowait()
+
+                if response_type == "success":
+                    # Add AI response bubble
+                    self.add_message_bubble(response_data, is_user=False)
+                    # Auto-save session after successful message
+                    self.auto_save_session()
+                elif response_type == "error":
+                    messagebox.showerror("Error", response_data)
+
+                # Reset UI state
+                self.is_processing = False
+                self.send_button.configure(state="normal", text="Send")
+                self.message_entry.configure(state="normal")
+
+        except queue.Empty:
+            pass
+
+        # Schedule next check
+        self.root.after(100, self.check_ai_response)
 
     def update_chat_display(self):
         """Update the chat display with current conversation"""
@@ -412,6 +448,10 @@ class AITubeChanApp:
 
     def clear_chat(self):
         """Clear the current chat"""
+        if self.is_processing:
+            messagebox.showwarning("Processing", "Please wait for the current message to finish processing.")
+            return
+
         if messagebox.askyesno("Confirm", "Are you sure you want to clear the chat?"):
             self.chatbot_api.reset_chat()
             self.memory_manager.clear_youtube_messages()
