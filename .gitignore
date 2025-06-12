@@ -1,0 +1,23 @@
+# Ignore all temporary files
+*.pyc
+*.pyo
+*.pyd
+*.spec
+__pycache__/
+.dist
+.idea
+build/
+dist/
+.ruby-lsp/
+
+# Ignore specific files or directories
+chat_session.json
+config.json
+sys_prompt.txt
+
+# Ignore development tools
+.vscode/
+.venv
+
+# Ignore files and directories containing "log" in their names
+*log*
