@@ -141,15 +141,19 @@ class AITubeChanApp:
             with open(f"characters/{character_name}.txt", 'r', encoding='utf-8') as f:
                 character_sheet = f.read().strip()
 
-            # Replace {user} placeholder with actual user name
-            character_sheet = character_sheet.replace("{user}", self.user_name)
+            # Validate character sheet is not empty
+            if not character_sheet:
+                messagebox.showerror("Error", f"Character file '{character_name}.txt' is empty!")
+                return
 
-            # Update system prompt
-            sys_prompt = self.chatbot_api.sys_prompt.replace("{character_sheet}", character_sheet)
+            # Get current user name
+            self.user_name = self.user_name_entry.get().strip() or "User"
 
             # Reset chat with new character
             self.chatbot_api.reset_chat()
-            self.chatbot_api.chat_history[0]["content"] = sys_prompt
+
+            # Use the new set_sys_prompt method to handle all replacements
+            self.chatbot_api.set_sys_prompt(character_sheet, self.user_name)
 
             self.current_character = character_name
             self.update_chat_display()
@@ -232,13 +236,40 @@ class AITubeChanApp:
         self.chat_display.configure(state="normal")
         self.chat_display.delete("1.0", "end")
 
-        # Display non-system messages
+        # Display non-system messages with message bubbles
         for message in self.chatbot_api.get_all_non_system_messages():
-            role = "You" if message["role"] == "user" else self.current_character or "AI"
+            role = message["role"]
             content = message["content"]
 
-            # Format message
-            self.chat_display.insert("end", f"{role}: {content}\n\n")
+            if role == "user":
+                # User message bubble (right-aligned style)
+                display_name = self.user_name
+                self.chat_display.insert("end", f"┌─ {display_name} ─────────────────────────────────────────────────┐\n")
+                self.chat_display.insert("end", f"│ {content}\n")
+                self.chat_display.insert("end", f"└────────────────────────────────────────────────────────────────────┘\n\n")
+
+            elif role == "assistant":
+                # Character message bubble (left-aligned style)
+                display_name = self.current_character or "AI"
+                self.chat_display.insert("end", f"┌─ {display_name} ─────────────────────────────────────────────────┐\n")
+
+                # Split long content into multiple lines for better readability
+                lines = content.split('\n')
+                for line in lines:
+                    if line.strip():
+                        # Wrap long lines
+                        while len(line) > 65:
+                            wrap_pos = line.rfind(' ', 0, 65)
+                            if wrap_pos == -1:
+                                wrap_pos = 65
+                            self.chat_display.insert("end", f"│ {line[:wrap_pos]}\n")
+                            line = line[wrap_pos:].lstrip()
+                        if line:
+                            self.chat_display.insert("end", f"│ {line}\n")
+                    else:
+                        self.chat_display.insert("end", f"│\n")
+
+                self.chat_display.insert("end", f"└────────────────────────────────────────────────────────────────────┘\n\n")
 
         self.chat_display.configure(state="disabled")
         self.chat_display.see("end")
@@ -282,7 +313,6 @@ class AITubeChanApp:
                     save_data = json.load(f)
 
                 # Restore chat state
-                self.chatbot_api.chat_history = save_data["chat_history"]
                 self.current_character = save_data.get("character")
                 self.user_name = save_data.get("user_name", "User")
 
@@ -296,6 +326,18 @@ class AITubeChanApp:
                 # Restore memory manager state
                 youtube_messages = save_data.get("youtube_messages", {})
                 self.memory_manager.youtube_messages = {int(k): v for k, v in youtube_messages.items()}
+
+                # Restore chat history and update system prompt with correct user name
+                self.chatbot_api.chat_history = save_data["chat_history"]
+
+                # Reload character to ensure proper user name replacement
+                if self.current_character:
+                    # Temporarily store the non-system messages
+                    non_system_messages = self.chatbot_api.get_all_non_system_messages()
+                    # Reload character (this will reset chat and update system prompt)
+                    self.load_character(self.current_character)
+                    # Restore the non-system messages
+                    self.chatbot_api.chat_history.extend(non_system_messages)
 
                 self.update_chat_display()
                 messagebox.showinfo("Success", "Chat loaded successfully!")
