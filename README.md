@@ -53,8 +53,9 @@ This will:
 
 ## Features (In Depth)
 
-- **Character Chatting:**
-  Select from pre-loaded characters (Kira, Okabe Rintarou) or **add your own** by creating `.txt` files in the `characters/` folder. Each file should contain the character’s personality, speech patterns, and backstory.
+For a summary of features, see the [Features (TL;DR)](#features-tldr) section above.
+
+Below are additional details on unique or complex features:
 
 - **YouTube Integration:**
   Paste any YouTube link in the chat—AI will automatically:
@@ -63,25 +64,13 @@ This will:
   3. Store compressed versions to optimize token usage
 
 - **Creativity Modes:**
-  Switch between three predefined modes via dropdown (Only applicable when using the Infermatic API service, otherwise it will show the list of models available):
+  Switch between three predefined modes via dropdown (only applicable when using the Infermatic API service, otherwise it will show the list of models available):
   - **Padrão:** Sao10K-70B-L3.3-Cirrus-x1 (default)
   - **Humano:** Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic (softer responses)
   - **Profundo:** TheDrummer-Fallen-Llama-3.3-R1-70B-v1 (darker, edgier tone)
 
 - **Memory Management:**
   AI automatically compresses long YouTube transcripts to stay under token limits while preserving key context.
-
-- **Session Management:**
-  - Auto-saves progress to `autosave_session.json`
-  - Manual save/load via buttons
-  - Clear chat without losing character selection
-
-- **UI:**
-  Dark-themed interface with:
-  - Character dropdown
-  - Name input field
-  - Chat history scrollable frame
-  - Send button with Ctrl+Enter support
 
 ## Requirements
 
