@@ -290,17 +290,12 @@ class ChatbotAPI:
         """
         # first check for best case scenario (totalgpt and all models available)
         if self.is_totalgpt and self.all_models_available:
-            if creativity_mode == "Padrão":
-                self.current_model = "Sao10K-70B-L3.3-Cirrus-x1"
-                print("Setting model to Padrão: Sao10K-70B-L3.3-Cirrus-x1")
-            elif creativity_mode == "Humano":
-                self.current_model = "Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic"
-                print("Setting model to Humano: Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic")
-            elif creativity_mode == "Profundo":
-                self.current_model = "TheDrummer-Fallen-Llama-3.3-R1-70B-v1"
-                print("Setting model to Profundo: TheDrummer-Fallen-Llama-3.3-R1-70B-v1")
+            hardcoded_model = self.hardcoded_models_dict.get(creativity_mode)
+            if hardcoded_model and hardcoded_model in self.available_models:
+                self.current_model = hardcoded_model
+                print(f"Setting model to {creativity_mode}: {hardcoded_model}")
             else:
-                raise ValueError(f"Unknown creativity mode: {creativity_mode}")
+                raise ValueError(f"Model for mode '{creativity_mode}' not available")
         # otherwise, check if the model is available in the API
         else:
             if creativity_mode in self.available_models:
