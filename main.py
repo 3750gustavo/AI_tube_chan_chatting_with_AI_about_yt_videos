@@ -220,7 +220,25 @@ class AITubeChanApp:
 
     def on_creativity_change(self, mode):
         """Handle creativity mode change"""
-        self.chatbot_api.set_creativity_mode(mode)
+        try:
+            self.chatbot_api.set_creativity_mode(mode)
+        except ValueError as e:
+            print(f"Error setting creativity mode: {e}")
+            # Get the list of available modes
+            available_modes = self.chatbot_api.get_creativity_modes()
+            # Try to set the next available mode
+            for available_mode in available_modes:
+                try:
+                    self.chatbot_api.set_creativity_mode(available_mode)
+                    self.creativity_dropdown.set(available_mode)
+                    break
+                except ValueError:
+                    continue
+            else:
+                # If none of the available modes work, show an error and disable the dropdown
+                print("Error: No valid creativity modes available.")
+                messagebox.showerror("Error", "No valid creativity modes available. Please check your configuration.")
+                self.creativity_dropdown.configure(state="disabled")
 
     def send_message(self):
         """Send message to AI using threading"""
