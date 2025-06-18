@@ -149,13 +149,52 @@ class ChatbotAPI:
             raise ValueError("sys_prompt must be a non-empty string")
         self.sys_prompt = sys_prompt
         self.chat_history = []
+        self.is_totalgpt = APIHandler.BASE_URL == "https://api.totalgpt.ai"
+        self.available_models = APIHandler.fetch_models() or []
+        self.hardcoded_models_dict = {
+            "Padrão": "Sao10K-70B-L3.3-Cirrus-x1",
+            "Humano": "Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic",
+            "Profundo": "TheDrummer-Fallen-Llama-3.3-R1-70B-v1"
+        }
+        # assume all models are available in TotalGPT
+        self.all_models_available = True
 
         # Initialize with the system prompt only if the history is empty
         if not self.chat_history:
             self.chat_history.append({"role": "system", "content": self.sys_prompt})
 
-        # Default starting model
-        self.current_model = "Sao10K-70B-L3.3-Cirrus-x1"
+        # If not using TotalGPT, fetch available models
+        if not self.is_totalgpt:
+            if self.available_models:
+                self.current_model = self.available_models[0]
+            else:
+                print("Critical Error: No models available in the API, closing the app.")
+                messagebox.showerror(
+                    "CRITICAL ERROR",
+                    "No models available in the API. Please check your API key and try again."
+                )
+                exit(1)
+        # If using TotalGPT, check for hardcoded models
+        else:
+            # check if all 3 creativity hardcoded models are still being offered by TotalGPT
+            for model_name, model_id in self.hardcoded_models_dict.items():
+                if model_id not in self.available_models:
+                    print(f"Warning: {model_name} model is not available in TotalGPT.")
+                    self.all_models_available = False
+
+            # If all hardcoded models are available, set the current model to the first one
+            if self.all_models_available:
+                self.current_model = self.hardcoded_models_dict["Padrão"]
+            else:  # otherwise, do the same as non-TotalGPT APIs
+                if self.available_models:
+                    self.current_model = self.available_models[0]
+                else:
+                    print("Critical Error: No models available in the API, closing the app.")
+                    messagebox.showerror(
+                        "CRITICAL ERROR",
+                        "No models available in the API. Please check your API key and try again."
+                    )
+                    exit(1)
 
     @property
     def chat_history(self):
@@ -231,25 +270,44 @@ class ChatbotAPI:
         * Padrão: Sao10K-70B-L3.3-Cirrus-x1
         * Humano: Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic
         * Profundo: TheDrummer-Fallen-Llama-3.3-R1-70B-v1
+        or
+        Returns all models available in the API if not using TotalGPT or any model is missing.
         """
-        return ["Padrão", "Humano", "Profundo"]
+        # Perfect case (totalgpt and all models available)
+        if self.is_totalgpt and self.all_models_available:
+            return ["Padrão", "Humano", "Profundo"]
+        # otherwise, return all available models
+        else:
+            return self.available_models
 
     def set_creativity_mode(self, creativity_mode):
         """Updates the current model based on the provided creativity mode.
         Args:
             creativity_mode (str): The creativity mode to set. Should be one of "Padrão", "Humano", or "Profundo".
+            unless not using TotalGPT or any model is missing, in which case it accepts any stringid for the model.
+        Raises:
+            ValueError: If the creativity mode is not recognized or if the model is not available in the API.
         """
-        if creativity_mode == "Padrão":
-            self.current_model = "Sao10K-70B-L3.3-Cirrus-x1"
-            print("Setting model to Padrão: Sao10K-70B-L3.3-Cirrus-x1")
-        elif creativity_mode == "Humano":
-            self.current_model = "Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic"
-            print("Setting model to Humano: Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic")
-        elif creativity_mode == "Profundo":
-            self.current_model = "TheDrummer-Fallen-Llama-3.3-R1-70B-v1"
-            print("Setting model to Profundo: TheDrummer-Fallen-Llama-3.3-R1-70B-v1")
+        # first check for best case scenario (totalgpt and all models available)
+        if self.is_totalgpt and self.all_models_available:
+            if creativity_mode == "Padrão":
+                self.current_model = "Sao10K-70B-L3.3-Cirrus-x1"
+                print("Setting model to Padrão: Sao10K-70B-L3.3-Cirrus-x1")
+            elif creativity_mode == "Humano":
+                self.current_model = "Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic"
+                print("Setting model to Humano: Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic")
+            elif creativity_mode == "Profundo":
+                self.current_model = "TheDrummer-Fallen-Llama-3.3-R1-70B-v1"
+                print("Setting model to Profundo: TheDrummer-Fallen-Llama-3.3-R1-70B-v1")
+            else:
+                raise ValueError(f"Unknown creativity mode: {creativity_mode}")
+        # otherwise, check if the model is available in the API
         else:
-            raise ValueError(f"Unknown creativity mode: {creativity_mode}")
+            if creativity_mode in self.available_models:
+                self.current_model = creativity_mode
+                print(f"Setting model to {creativity_mode}")
+            else:
+                raise ValueError(f"Unknown model name or model not available in the API: {creativity_mode}")
 
     def send_message(self, message_text, store_message=None, custom_history=None):
         """Sends a message to the LLM API and returns the response using chat completion.
