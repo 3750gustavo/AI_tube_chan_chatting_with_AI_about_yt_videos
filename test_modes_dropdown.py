@@ -54,6 +54,9 @@ def test_on_creativity_change():
     # Override the available models to exclude the missing model
     chatbot_api.available_models = ["Sao10K-70B-L3.3-Cirrus-x1", "TheDrummer-Fallen-Llama-3.3-R1-70B-v1"]
 
+    # Override the self.all_models_available to simulate the missing model
+    chatbot_api.all_models_available = False
+
     # Simulate the on_creativity_change method
     try:
         chatbot_api.set_creativity_mode("Humano")
@@ -71,12 +74,10 @@ def test_on_creativity_change():
         else:
             # If none of the available modes work, just print an error and exit
             print("Error: No valid creativity modes available.")
-            exit(1)
+            pytest.fail("Error: No valid creativity modes available.")
 
     # Check that the API has fallen back to an available model
     available_models = chatbot_api.get_creativity_modes()
     assert chatbot_api.get_current_model() in available_models
 
 # Run using: pytest .\test_modes_dropdown.py -v
-if __name__ == "__main__":
-    pytest.main(["-v", "test_modes_dropdown.py"])
