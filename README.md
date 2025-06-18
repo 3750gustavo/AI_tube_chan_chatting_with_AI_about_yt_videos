@@ -36,9 +36,10 @@ This will:
 
 2. **API Setup:**
    - Open `config.json` and fill in your API credentials.
-   - Currently only works for **Infermatic API** (`BASE_URL: "https://api.totalgpt.ai"`) as it has the model names hardcoded in the code.
+   - Set the `"BASE_URL"` to your API's endpoint (works with any OAI-compatible API).
+   - Set the `"API_KEY"` to your OpenAI API key or the key for your chosen OAI-compatible endpoint.
 
-**Note:** Future updates will add support for other OpenAI-compatible APIs and you can technically just edit all the model names for the ones you want to use available in your service of choice; the code should work with any OpenAI-compatible API, it's just that the model names are hardcoded for now.
+**Note:** Instead of the predefined modes, it will show the list of model names when not using Infermatic API service, so you can choose the model you want to use.
 
 3. **Character Setup:**
    - You will find pre-loaded characters in the `characters/` folder.
@@ -62,7 +63,7 @@ This will:
   3. Store compressed versions to optimize token usage
 
 - **Creativity Modes:**
-  Switch between three predefined modes via dropdown:
+  Switch between three predefined modes via dropdown (Only applicable when using the Infermatic API service, otherwise it will show the list of models available):
   - **Padrão:** Sao10K-70B-L3.3-Cirrus-x1 (default)
   - **Humano:** Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic (softer responses)
   - **Profundo:** TheDrummer-Fallen-Llama-3.3-R1-70B-v1 (darker, edgier tone)
@@ -94,15 +95,15 @@ This will:
 - **API Errors:** Check `config.json` for valid credentials.
 - **Crashes:** Ensure all dependencies are installed correctly. If issues persist, try deleting the `venv/` folder and rerunning the start script to recreate the environment, if the issue persists, please open an issue on the GitHub repository.
 
-## Roadmap
+## Roadmap (Checklist)
 
-- **Q3 2025:** Improve user experience with:
-  - A way to add new characters via the UI
-  - Ensure each component works as intended with tests for each feature
-  - Add more characters to the default list (e.g., Glenn Radars (Akashic Records of Bastard Magic Instructor), Junichiro Kagami (Ultimate Otaku Teacher), etc.)
-- **Q4 2025:** Add support for any OAI-compatible API (e.g., Google Gemini, other OpenAI-compatible APIs providers, OpenAI itself, etc.)
-- **Q1 2026:** Maybe a Discord channel for community support if the project gains traction
-- **Q2 2026:** Add more advanced features like voice generation so you can hear the characters speak (a simple tts that works on most machines for free)
+- [ ] **Q3 2025:** Improve user experience with:
+  - [ ] A way to add new characters via the UI
+  - [ ] Ensure each component works as intended with tests for each feature
+  - [ ] Add more characters to the default list (e.g., Glenn Radars (Akashic Records of Bastard Magic Instructor), Junichiro Kagami (Ultimate Otaku Teacher), etc.)
+- [x] **Q4 2025:** Add support for any OAI-compatible API (e.g., Google Gemini, other OpenAI-compatible APIs providers, OpenAI itself, etc.)
+- [ ] **Q1 2026:** Maybe a Discord channel for community support if the project gains traction
+- [ ] **Q2 2026:** Add more advanced features like voice generation so you can hear the characters speak (a simple tts that works on most machines for free)
 
 ## Community
 
