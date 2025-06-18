@@ -398,7 +398,19 @@ class AITubeChanApp:
             self.character_dropdown.set(self.current_character)
 
         # Set creativity mode
-        self.chatbot_api.set_creativity_mode(creativity_mode)
+        try:
+            self.chatbot_api.set_creativity_mode(creativity_mode)
+        except ValueError:
+            # Fallback logic if the saved mode is no longer available
+            available_modes = self.chatbot_api.get_creativity_modes()
+            if available_modes:
+                new_mode = available_modes[0]
+                self.chatbot_api.set_creativity_mode(new_mode)
+                self.creativity_dropdown.set(new_mode)
+                print(f"Warning: Saved creativity mode '{creativity_mode}' not available. Switched to '{new_mode}'.")
+            else:
+                messagebox.showerror("Error", "No valid creativity modes available. Please check your configuration.")
+                self.creativity_dropdown.configure(state="disabled")
 
         # Restore memory manager state
         youtube_messages = save_data.get("youtube_messages", {})
