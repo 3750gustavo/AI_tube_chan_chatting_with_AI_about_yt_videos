@@ -7,7 +7,7 @@ class RAGManager:
     """
     RAG (Retrieval-Augmented Generation) Manager for semantic similarity and context retrieval.
     """
-    def __init__(self, model="intfloat-multilingual-e5-base"):
+    def __init__(self, model="intfloat-multilingual-e5-base", debug=False):
         """
         Initialize the RAG Manager.
 
@@ -19,6 +19,7 @@ class RAGManager:
         self.api_key = config["API_KEY"]
         self.model = model
         self.base_url = "https://api.totalgpt.ai/v1/embeddings"
+        self.debug = debug
 
     def _get_embeddings(self, texts):
         """
@@ -71,7 +72,12 @@ class RAGManager:
                 chunks.append(" ".join(current_chunk))
         return chunks
 
-    def get_relevant_context(self, user_input, context_strings, threshold=0.75):
+    def normalize_score(self, raw_score):
+        """Normalize scores to [0.7-1.0] range for consistency with API"""
+        normalized = (raw_score - 0.7) / 0.3
+        return max(0, min(normalized, 1.0))  # Clamp values
+
+    def get_relevant_context(self, user_input, context_strings, threshold=0.333):  # Default now 33.3% of normalized range
         """
         Retrieve relevant context based on semantic similarity with the user input.
 
@@ -93,22 +99,43 @@ class RAGManager:
         # Calculate cosine similarity scores
         similarity_scores = cosine_similarity([user_embedding], context_embeddings)[0]
 
-        # Filter and sort chunks based on similarity scores
+        # Normalize scores to API range
+        normalized_scores = [self.normalize_score(score) for score in similarity_scores]
+
+        # Filter and sort chunks based on normalized scores
         relevant_chunks = [
-            {"chunk": chunk, "score": score}
-            for chunk, score in zip(context_chunks, similarity_scores)
-            if score >= threshold
+            {"chunk": chunk, "score": norm_score}
+            for chunk, raw_score, norm_score in zip(context_chunks, similarity_scores, normalized_scores)
+            if norm_score >= threshold  # Use normalized threshold (0.333 = 0.75 raw)
         ]
         relevant_chunks.sort(key=lambda x: x["score"], reverse=True)
 
         # Join relevant chunks into a single string
-        relevant_context = " ".join(chunk["chunk"] for chunk in relevant_chunks)
+        relevant_context = "Relevant Context:\n"
+        if not relevant_chunks:
+            relevant_context += "No relevant context found."
+        else:
+            relevant_context += " ".join(chunk["chunk"] for chunk in relevant_chunks)
 
-        return relevant_context
+        # Debugging output
+        if self.debug:
+            print("Debugging Information:")
+            print(f"Model: {self.model}")
+            print(f"User Input: {user_input}")
+            print(f"Context Chunks and their respective Scores (pre-normalized):")
+            for chunk, raw_score, norm_score in zip(context_chunks, similarity_scores, normalized_scores):
+                print(f"  Chunk: {chunk[:50]}... | Raw Score: {raw_score:.4f} | Normalized Score: {norm_score:.4f}")
+            print(f"Threshold for relevance: {threshold}")
+            print(f"Relevant Chunks (after filtering and sorting):")
+            for chunk in relevant_chunks:
+                print(f"  Chunk: {chunk['chunk'][:50]}... | Score: {chunk['score']:.4f}")
+
+        # Return the relevant context as a single string
+        return relevant_context.strip()
 
 if __name__ == "__main__":
     # Example usage
-    rag_manager = RAGManager()
+    rag_manager = RAGManager(debug=True)  # Set debug=True for testing
 
     user_input = "What is the capital of France?"
     context_strings = [ # Will return all sentences, except the last one
