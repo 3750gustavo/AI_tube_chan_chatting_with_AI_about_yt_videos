@@ -41,6 +41,8 @@ This will:
 
 **Note:** Instead of the predefined modes, it will show the list of model names when not using Infermatic API service, so you can choose the model you want to use.
 
+**About Gemini API support:** If you want to use the Gemini API, you need to set the `"BASE_URL"` to `https://generativelanguage.googleapis.com/v1beta/openai/` and provide your API key in the `"API_KEY"` field.
+
 3. **Character Setup:**
    - You will find pre-loaded characters in the `characters/` folder.
    - To add your own characters, create a new `.txt` file in the `characters/` folder with the character's personality, speech patterns, and backstory.
