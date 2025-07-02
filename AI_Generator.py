@@ -400,34 +400,26 @@ class ChatbotAPI:
         for message in messages_to_send:
             print(f"\n{message['role']}: {message['content']}")
 
-        # Prepare the data to send to the API
+        # Prepare the base data to send to the API
+        base_data = {
+            "model": self.current_model,
+            "messages": messages_to_send,
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "top_p": 0.95,
+            "stream": False
+        }
 
+        # Add non-Gemini specific parameters if needed
         if not self.is_gemini:
-            # For non-Gemini APIs, use the standard parameters
-            data = {
-                "model": self.current_model,
-                "messages": messages_to_send,
-                "temperature": 0.7,
-                "max_tokens": 2048,
-                "top_p": 0.95,
+            base_data.update({
                 "top_k": 40,
                 "repetition_penalty": 1.05,
-                "stream": False,
                 "seed": -1
-            }
-        else:
-            # For Gemini OAI path, use their specific parameters
-            data = {
-                "model": self.current_model,
-                "messages": messages_to_send,
-                "temperature": 0.7,
-                "max_tokens": 2048,
-                "top_p": 0.95,
-                "stream": False
-            }
+            })
 
         # Send the request to the API
-        response = APIHandler.chat_completion_generate(data)
+        response = APIHandler.chat_completion_generate(base_data)
         if response is None or (isinstance(response, str) and response.strip() == ""):
             print("No response from API or empty response.")
             return None
