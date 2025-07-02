@@ -65,9 +65,13 @@ def handle_api_errors(parse_response=True):
                 return response
             except requests.exceptions.RequestException as e:
                 print(f"Request failed: {e}")
+                if response is not None and response.text:
+                    print(f"Error response body: {response.text}")
                 return None
             except json.JSONDecodeError as e:
                 print(f"Failed to parse API response: {e}")
+                if response is not None and response.text:
+                    print(f"Error response body: {response.text}")
                 return None
             except Exception as e:
                 print(f"Unexpected error: {e}")
@@ -142,8 +146,10 @@ class APIHandler:
     def generate_text(cls, data, stream=False):
         cls.load_api_key()
         if cls.USES_V1:  # Default path
+            print("Using v1 path for chat completions")
             return requests.post(f"{cls.BASE_URL}/v1/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
         else:  # not using v1, try alt path
+            print("Using non-v1 path for chat completions")
             return requests.post(f"{cls.BASE_URL}/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
 
     @classmethod
@@ -151,8 +157,12 @@ class APIHandler:
     def chat_completion_generate(cls, data, stream=False):
         cls.load_api_key()
         if cls.USES_V1:  # Default path
+            print("Using v1 path for chat completions")
             return requests.post(f"{cls.BASE_URL}/v1/chat/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
         else:  # not using v1, try alt path
+            print("Using non-v1 path for chat completions")
+            #print(f"POST Body: {json.dumps(data, indent=4)}")  # Print the post body
+            # Note: This is the OAI compatible path that Gemini uses
             return requests.post(f"{cls.BASE_URL}/chat/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
 
     @staticmethod
@@ -179,14 +189,42 @@ class APIHandler:
             print(f"Failed to parse API response: {e}")
             return None
 
+    @classmethod
+    def clean_model_list(cls, model_list):
+        """Fixes the fact some APIs incorrectly return model names with "models/" prefix
+        but expect the model ID to be passed without it. (Gemini OAI compatible path)
+        Args:
+            model_list (list): The list of model names to clean.
+        Returns:
+            list: The cleaned list of model names or the original list if no cleaning is needed.
+        """
+        if not isinstance(model_list, list):
+            print("Model list is not a list.")
+            return model_list
+
+        # Check if all models start with "models/"
+        all_start_with_prefix = all(isinstance(model, str) and model.startswith("models/") for model in model_list)
+
+        if all_start_with_prefix:
+            # Remove "models/" prefix from all models
+            cleaned_list = [model.replace("models/", "") for model in model_list]
+            return cleaned_list
+        else:
+            # No cleaning needed, return original list
+            return model_list
+
 class ChatbotAPI:
     def __init__(self):
         if not isinstance(sys_prompt, str):
             raise ValueError("sys_prompt must be a non-empty string")
         self.sys_prompt = sys_prompt
         self.chat_history = []
-        self.is_totalgpt = APIHandler.BASE_URL == "https://api.totalgpt.ai"
+        self.is_totalgpt = APIHandler.BASE_URL.startswith("https://api.totalgpt.ai")
+        self.is_gemini = APIHandler.BASE_URL.startswith("https://generativelanguage.googleapis.com")
         self.available_models = APIHandler.fetch_models() or []
+        # Clean the model list just in case
+        self.available_models = APIHandler.clean_model_list(self.available_models)
+        print(f"Available models: {self.available_models}")
         self.hardcoded_models_dict = {
             "Padrão": "Sao10K-70B-L3.3-Cirrus-x1",
             "Humano": "Sao10K-72B-Qwen2.5-Kunou-v1-FP8-Dynamic",
@@ -362,17 +400,31 @@ class ChatbotAPI:
         for message in messages_to_send:
             print(f"\n{message['role']}: {message['content']}")
 
-        data = {
-            "model": self.current_model,
-            "messages": messages_to_send,
-            "temperature": 0.7,
-            "max_tokens": 2048,
-            "top_p": 0.95,
-            "top_k": 40,
-            "repetition_penalty": 1.05,
-            "stream": False,
-            "seed": -1
-        }
+        # Prepare the data to send to the API
+
+        if not self.is_gemini:
+            # For non-Gemini APIs, use the standard parameters
+            data = {
+                "model": self.current_model,
+                "messages": messages_to_send,
+                "temperature": 0.7,
+                "max_tokens": 2048,
+                "top_p": 0.95,
+                "top_k": 40,
+                "repetition_penalty": 1.05,
+                "stream": False,
+                "seed": -1
+            }
+        else:
+            # For Gemini OAI path, use their specific parameters
+            data = {
+                "model": self.current_model,
+                "messages": messages_to_send,
+                "temperature": 0.7,
+                "max_tokens": 2048,
+                "top_p": 0.95,
+                "stream": False
+            }
 
         # Send the request to the API
         response = APIHandler.chat_completion_generate(data)
