@@ -78,7 +78,7 @@ def handle_api_errors(parse_response=True):
     return decorator
 
 class APIHandler:
-    BASE_URL = config['BASE_URL']
+    BASE_URL = config['BASE_URL'].rstrip('/')  # Remove trailing slash if present
 
     @classmethod
     def load_api_key(cls):
