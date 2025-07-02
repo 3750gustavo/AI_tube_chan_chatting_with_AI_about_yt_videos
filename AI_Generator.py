@@ -79,6 +79,7 @@ def handle_api_errors(parse_response=True):
 
 class APIHandler:
     BASE_URL = config['BASE_URL'].rstrip('/')  # Remove trailing slash if present
+    USES_V1 = True  # Set to True by default, change to False if fails to fetch models at boot
 
     @classmethod
     def load_api_key(cls):
@@ -89,35 +90,70 @@ class APIHandler:
 
     @classmethod
     def fetch_models(cls):
+        """Fetches available models from the API and returns a list of model IDs."""
         cls.load_api_key()
-        try:
-            response = requests.get(f"{cls.BASE_URL}/v1/models", headers=cls.HEADERS)
-            response.raise_for_status()
+        if cls.USES_V1:  # Default path
+            try:
+                response = requests.get(f"{cls.BASE_URL}/v1/models", headers=cls.HEADERS)
+                response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
 
-            if isinstance(data, list):
-                return [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
-            elif isinstance(data, dict) and 'data' in data and isinstance(data['data'], list):
-                return [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
-            else:
-                print("Unexpected response structure")
+                if isinstance(data, list):
+                    return [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
+                elif isinstance(data, dict) and 'data' in data and isinstance(data['data'], list):
+                    return [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
+                else:
+                    print("Unexpected response structure")
+                    # first fail, switch to not using v1
+                    print("Switching to not using v1")
+                    cls.USES_V1 = False
+                    # we recursively call this method to try fetching models again without v1
+                    return cls.fetch_models()
+            except requests.exceptions.RequestException as e:
+                print(f"Error fetching models: {e}")
+                # first fail, switch to not using v1
+                cls.USES_V1 = False
+                print("Switching to not using v1")
+                return cls.fetch_models()
+
+        else:  # not using v1, try alt path
+            try:
+                response = requests.get(f"{cls.BASE_URL}/models", headers=cls.HEADERS)
+                response.raise_for_status()
+
+                data = response.json()
+
+                if isinstance(data, list):
+                    return [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
+                elif isinstance(data, dict) and 'data' in data and isinstance(data['data'], list):
+                    return [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
+                else:
+                    print("Unexpected response structure")
+                    # still fails, return empty list
+                    return []
+            except requests.exceptions.RequestException as e:
+                print(f"Error fetching models: {e}")
+                # still fails, return empty list
                 return []
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching models: {e}")
-            return []
 
     @classmethod
     @handle_api_errors(parse_response=True)
     def generate_text(cls, data, stream=False):
         cls.load_api_key()
-        return requests.post(f"{cls.BASE_URL}/v1/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
+        if cls.USES_V1:  # Default path
+            return requests.post(f"{cls.BASE_URL}/v1/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
+        else:  # not using v1, try alt path
+            return requests.post(f"{cls.BASE_URL}/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
 
     @classmethod
     @handle_api_errors(parse_response=True)
     def chat_completion_generate(cls, data, stream=False):
         cls.load_api_key()
-        return requests.post(f"{cls.BASE_URL}/v1/chat/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
+        if cls.USES_V1:  # Default path
+            return requests.post(f"{cls.BASE_URL}/v1/chat/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
+        else:  # not using v1, try alt path
+            return requests.post(f"{cls.BASE_URL}/chat/completions", json=data, headers=cls.HEADERS, timeout=300, stream=stream)
 
     @staticmethod
     def close_session(response):
