@@ -221,8 +221,91 @@ class AITubeChanApp:
             messagebox.showerror("Error", f"Failed to load character: {e}")
 
     def on_character_change(self, character_name):
-        """Handle character selection change"""
-        self.load_character(character_name)
+        """Handle character selection change with unsaved data warning"""
+        # Check if there's unsaved chat data
+        if self.chatbot_api.chat_history:
+            # Create warning dialog
+            warning_root = ctk.CTkToplevel(self.root)
+            warning_root.title("⚠️ WARNING: UNSAVED CHAT ⚠️")
+            warning_root.geometry("400x200")
+            warning_root.transient(self.root)  # Center dialog relative to main window
+
+            # Warning message
+            message = "Switching characters will PERMANENTLY DELETE your current chat session!\n"
+            message += f"You have {len(self.chatbot_api.chat_history) - 1} messages unsaved."
+            ctk.CTkLabel(warning_root, text=message, wraplength=350).pack(pady=20)
+
+            # Button frame
+            button_frame = ctk.CTkFrame(warning_root)
+            button_frame.pack(fill="x", padx=10, pady=10)
+
+            # Save button
+            def save_and_switch():
+                # Open save dialog
+                filename = filedialog.asksaveasfilename(
+                    defaultextension=".json",
+                    filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+                )
+                if filename:
+                    # Save session
+                    save_data = {
+                        "character": self.current_character,
+                        "user_name": self.user_name,
+                        "creativity_mode": self.creativity_dropdown.get(),
+                        "chat_history": self.chatbot_api.chat_history,
+                        "youtube_messages": self.memory_manager.get_youtube_messages(),
+                        "version": "1.0"
+                    }
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        json.dump(save_data, f, indent=2, ensure_ascii=False)
+                    # Proceed to load new character
+                    self.load_character(character_name)
+                    warning_root.destroy()
+
+            # Proceed button
+            def proceed_anyway():
+                # Secondary confirmation for safety
+                if messagebox.askyesno("FINAL WARNING", "Are you SURE? This will PERMANENTLY DELETE your chat!"):
+                    self.load_character(character_name)
+                    warning_root.destroy()
+
+            # Cancel button
+            def cancel_switch():
+                # Restore dropdown to current character
+                self.character_dropdown.set(self.current_character)
+                warning_root.destroy()
+
+            # Create buttons with custom colors
+            ctk.CTkButton(
+                button_frame,
+                text="🟢 SAVE & SWITCH",
+                command=save_and_switch,
+                fg_color="#10B981",  # Green
+                hover_color="#059669"
+            ).pack(side="left", fill="x", expand=True, padx=5)
+
+            ctk.CTkButton(
+                button_frame,
+                text="🔴 DELETE CHAT",
+                command=proceed_anyway,
+                fg_color="#EF4444",  # Red
+                hover_color="#DC2626"
+            ).pack(side="left", fill="x", expand=True, padx=5)
+
+            ctk.CTkButton(
+                button_frame,
+                text="🟡 CANCEL",
+                command=cancel_switch,
+                fg_color="#F59E0B",  # Yellow
+                hover_color="#D97706"
+            ).pack(side="left", fill="x", expand=True, padx=5)
+
+            # Focus on warning dialog
+            warning_root.grab_set()
+            self.root.wait_window(warning_root)
+        else:
+            # No unsaved data - proceed normally
+            self.load_character(character_name)
 
     def on_user_name_change(self, event):
         """Handle user name change"""
