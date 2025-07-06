@@ -222,8 +222,8 @@ class AITubeChanApp:
 
     def on_character_change(self, character_name):
         """Handle character selection change with unsaved data warning"""
-        # Check if there's unsaved chat data
-        if self.chatbot_api.chat_history:
+        # Check if there's unsaved non-system chat data
+        if self.chatbot_api.get_all_non_system_messages():
             # Create warning dialog
             warning_root = ctk.CTkToplevel(self.root)
             warning_root.title("⚠️ WARNING: UNSAVED CHAT ⚠️")
