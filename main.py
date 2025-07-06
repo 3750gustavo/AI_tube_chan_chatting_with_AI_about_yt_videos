@@ -4,11 +4,13 @@ import json
 import threading
 import queue
 from tkinter import filedialog, messagebox
+import atexit
+
+# internal classes
 from AI_Generator import ChatbotAPI, APIHandler
 from user_input_validator import UserInputValidator
 from memory_manager import MemoryManager
 from youtube_transcript_module import YouTubeTranscriptDownloader
-import atexit
 
 class AITubeChanApp:
     def __init__(self):
