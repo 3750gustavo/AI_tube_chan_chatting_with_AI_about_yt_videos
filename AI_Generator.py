@@ -438,3 +438,19 @@ class ChatbotAPI:
             self.chat_history.append({"role": "assistant", "content": response})
 
         return response
+    
+    def update_message(self, old_text: str, new_text: str) -> bool:
+        """Updates the first occurrence of a message in the chat history.
+        
+        Args:
+            old_text (str): The exact content of the message to replace
+            new_text (str): The new content to replace it with
+        
+        Returns:
+            bool: True if a message was updated, False otherwise
+        """
+        for message in self.chat_history:
+            if message["content"] == old_text:
+                message["content"] = new_text
+                return True
+        return False

@@ -11,6 +11,7 @@ from AI_Generator import ChatbotAPI, APIHandler
 from user_input_validator import UserInputValidator
 from memory_manager import MemoryManager
 from youtube_transcript_module import YouTubeTranscriptDownloader
+from context_menu import ContextMenu
 
 class AITubeChanApp:
     def __init__(self):
@@ -135,8 +136,14 @@ class AITubeChanApp:
         # Bind Enter key
         self.message_entry.bind("<Control-Return>", lambda e: self.send_message())
 
+    def update_message(self, old_text, new_text):
+        # Update the chat history
+        for message in self.chat_history:
+            if message["content"] == old_text:
+                message["content"] = new_text
+                break
+
     def add_message_bubble(self, message, is_user=True):
-        """Add a message bubble to the chat display"""
         # Create bubble frame
         bubble_frame = ctk.CTkFrame(self.chat_scroll)
 
@@ -153,11 +160,17 @@ class AITubeChanApp:
         message_label = ctk.CTkLabel(
             bubble_frame,
             text=message,
-            wraplength=400,
+            wraplength=512,
             justify="left",
             font=ctk.CTkFont(size=14)
         )
         message_label.pack(padx=15, pady=10)
+
+        # Create context menu
+        context_menu = ContextMenu(self.root, message_label, self)
+
+        # Bind right-click event
+        message_label.bind("<3>", lambda e: context_menu.show(e.x_root, e.y_root))
 
         # Auto-scroll to bottom
         self.root.after(100, lambda: self.chat_scroll._parent_canvas.yview_moveto(1.0))
