@@ -232,7 +232,8 @@ class AITubeChanApp:
 
             # Warning message
             message = "Switching characters will PERMANENTLY DELETE your current chat session!\n"
-            message += f"You have {len(self.chatbot_api.chat_history) - 1} messages unsaved."
+            unsaved_count = max(0, len(self.chatbot_api.get_all_non_system_messages()))
+            message += f"You have {unsaved_count} messages unsaved."
             ctk.CTkLabel(warning_root, text=message, wraplength=350).pack(pady=20)
 
             # Button frame
@@ -241,26 +242,15 @@ class AITubeChanApp:
 
             # Save button
             def save_and_switch():
-                # Open save dialog
-                filename = filedialog.asksaveasfilename(
-                    defaultextension=".json",
-                    filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-                )
-                if filename:
-                    # Save session
-                    save_data = {
-                        "character": self.current_character,
-                        "user_name": self.user_name,
-                        "creativity_mode": self.creativity_dropdown.get(),
-                        "chat_history": self.chatbot_api.chat_history,
-                        "youtube_messages": self.memory_manager.get_youtube_messages(),
-                        "version": "1.0"
-                    }
-                    with open(filename, 'w', encoding='utf-8') as f:
-                        json.dump(save_data, f, indent=2, ensure_ascii=False)
-                    # Proceed to load new character
+                # Temporarily override the save_chat method to load the new character after saving
+                original_save_chat = self.save_chat
+
+                def save_and_then_switch():
+                    original_save_chat()
                     self.load_character(character_name)
                     warning_root.destroy()
+
+                save_and_then_switch()
 
             # Proceed button
             def proceed_anyway():
