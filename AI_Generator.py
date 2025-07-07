@@ -1,6 +1,7 @@
 import json, requests
 from tkinter import messagebox
 from functools import wraps
+import re
 
 # loads the LLM api key from the config file
 with open("config.json", "r") as f:
@@ -84,6 +85,8 @@ def handle_api_errors(parse_response=True):
 class APIHandler:
     BASE_URL = config['BASE_URL'].rstrip('/')  # Remove trailing slash if present
     USES_V1 = True  # Set to True by default, change to False if fails to fetch models at boot
+    embeddings_models = []  # Dedicated list for embedding models
+    non_embedding_models = []  # Main list for non-embedding models
 
     @classmethod
     def load_api_key(cls):
@@ -94,19 +97,22 @@ class APIHandler:
 
     @classmethod
     def fetch_models(cls):
-        """Fetches available models from the API and returns a list of model IDs."""
+        """
+        Fetches available models from the API and returns a list of model IDs.
+        Populates embeddings_models if any model with "embedding" or "intfloat" (non-case sensitive) in its name is found.
+        """
         cls.load_api_key()
         if cls.USES_V1:  # Default path
             try:
                 response = requests.get(f"{cls.BASE_URL}/v1/models", headers=cls.HEADERS)
                 response.raise_for_status()
-
                 data = response.json()
 
+                # Check if the response is a list or a dict with 'data' key
                 if isinstance(data, list):
-                    return [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
+                    models = [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
                 elif isinstance(data, dict) and 'data' in data and isinstance(data['data'], list):
-                    return [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
+                    models = [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
                 else:
                     print("Unexpected response structure")
                     # first fail, switch to not using v1
@@ -114,6 +120,16 @@ class APIHandler:
                     cls.USES_V1 = False
                     # we recursively call this method to try fetching models again without v1
                     return cls.fetch_models()
+
+                # clean the model list before separating them
+                models = cls.clean_model_list(models)
+
+                # Separate models into embeddings and non-embeddings
+                embedding_pattern = re.compile(r'(?i)embedding|intfloat')
+                cls.embeddings_models = [model for model in models if embedding_pattern.search(model)]
+                cls.non_embedding_models = [model for model in models if model not in cls.embeddings_models]
+                return cls.non_embedding_models
+
             except requests.exceptions.RequestException as e:
                 print(f"Error fetching models: {e}")
                 # first fail, switch to not using v1
@@ -125,21 +141,35 @@ class APIHandler:
             try:
                 response = requests.get(f"{cls.BASE_URL}/models", headers=cls.HEADERS)
                 response.raise_for_status()
-
                 data = response.json()
 
                 if isinstance(data, list):
-                    return [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
+                    models = [model.get('id', model.get('name', '')) for model in data if isinstance(model, dict)]
                 elif isinstance(data, dict) and 'data' in data and isinstance(data['data'], list):
-                    return [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
+                    models = [model.get('id', model.get('name', '')) for model in data['data'] if isinstance(model, dict)]
                 else:
                     print("Unexpected response structure")
                     # still fails, return empty list
                     return []
+
+                # clean the model list before separating them
+                models = cls.clean_model_list(models)
+
+                # Separate models into embeddings and non-embeddings
+                embedding_pattern = re.compile(r'(?i)embedding|intfloat')
+                cls.embeddings_models = [model for model in models if embedding_pattern.search(model)]
+                cls.non_embedding_models = [model for model in models if model not in cls.embeddings_models]
+                return cls.non_embedding_models
+
             except requests.exceptions.RequestException as e:
                 print(f"Error fetching models: {e}")
                 # still fails, return empty list
                 return []
+
+    @classmethod
+    def get_embeddings_models(cls):
+        """Returns the list of embedding models if available."""
+        return cls.embeddings_models if cls.embeddings_models else None
 
     @classmethod
     @handle_api_errors(parse_response=True)
@@ -222,8 +252,6 @@ class ChatbotAPI:
         self.is_totalgpt = APIHandler.BASE_URL.startswith("https://api.totalgpt.ai")
         self.is_gemini = APIHandler.BASE_URL.startswith("https://generativelanguage.googleapis.com")
         self.available_models = APIHandler.fetch_models() or []
-        # Clean the model list just in case
-        self.available_models = APIHandler.clean_model_list(self.available_models)
         print(f"Available models: {self.available_models}")
         self.hardcoded_models_dict = {
             "Padrão": "Sao10K-70B-L3.3-Cirrus-x1",
@@ -438,14 +466,14 @@ class ChatbotAPI:
             self.chat_history.append({"role": "assistant", "content": response})
 
         return response
-    
+
     def update_message(self, old_text: str, new_text: str) -> bool:
         """Updates the first occurrence of a message in the chat history.
-        
+
         Args:
             old_text (str): The exact content of the message to replace
             new_text (str): The new content to replace it with
-        
+
         Returns:
             bool: True if a message was updated, False otherwise
         """
