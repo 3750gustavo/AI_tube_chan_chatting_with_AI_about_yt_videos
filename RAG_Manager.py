@@ -89,7 +89,7 @@ class RAGManager:
             threshold (float): Minimum similarity score to consider a match (default: 0.75).
 
         Returns:
-            list: List of relevant context strings sorted by similarity score.
+            str: Relevant context as a single formatted string.
         """
         # Break context strings into smaller chunks
         context_chunks = self._break_into_chunks(context_strings)
