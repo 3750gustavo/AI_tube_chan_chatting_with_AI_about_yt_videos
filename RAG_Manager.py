@@ -8,7 +8,7 @@ class RAGManager:
     """
     def __init__(self, model=None, debug=False, api_handler=None):
         """
-        Initialize the RAG Manager. Uses first available embedding model if none specified.
+        Initialize the RAG Manager. Uses first available embedding model if none specified; on error tries each model on list until one works.
         if no available models are found, stops itself from functioning, the app will still work just without RAG functionality.
 
         TODO:
