@@ -18,7 +18,9 @@ class RAGManager:
             config = json.load(f)
         self.api_key = config["API_KEY"]
         self.model = model
-        self.base_url = "https://api.totalgpt.ai/v1/embeddings"
+        self.base_url = config["BASE_URL"].rstrip('/')
+        self.USES_V1 = self.base_url.startswith("https://api.totalgpt.ai")  # Auto-detect TotalGPT
+        self.embeddings_endpoint = f"{self.base_url}/v1/embeddings" if self.USES_V1 else f"{self.base_url}/embeddings"
         self.debug = debug
 
     def _get_embeddings(self, texts):
@@ -39,7 +41,7 @@ class RAGManager:
             "input": texts,
             "model": self.model
         }
-        response = requests.post(self.base_url, headers=headers, json=data)
+        response = requests.post(self.embeddings_endpoint, headers=headers, json=data)
         if response.status_code == 200:
             return [item["embedding"] for item in response.json()["data"]]
         else:
